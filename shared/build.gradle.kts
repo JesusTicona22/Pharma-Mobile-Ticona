@@ -5,7 +5,9 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    kotlin("plugin.serialization") version "2.0.0" // Usa la versión de Kotlin que tenga
 }
+val ktor = "2.3.11" // Usa una versión estable de Ktor 2.x si tu Kotlin es 1.9.x o 2.0.x
 
 kotlin {
     listOf(
@@ -45,6 +47,7 @@ kotlin {
             implementation(libs.compose.uiTooling)
             // api: MainApplication (androidApp) usa androidContext() al arrancar Koin.
             api(libs.koin.android)
+            implementation("io.ktor:ktor-client-okhttp:${ktor}")
         }
         commonMain.dependencies {
             // api: androidApp llama a initKoin(), cuya firma expone KoinAppDeclaration.
@@ -60,10 +63,17 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation("io.ktor:ktor-client-core:${ktor}")
+            implementation("io.ktor:ktor-client-content-negotiation:${ktor}")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:${ktor}")
+            implementation("io.ktor:ktor-client-logging:${ktor}")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+        }
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:${ktor}")
         }
     }
 }

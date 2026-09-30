@@ -5,8 +5,10 @@ import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
+import pe.edu.upeu.pharmamobil.data.remote.ProductoApi
 import pe.edu.upeu.pharmamobil.data.repository.ClienteRepositorioEnMemoria
 import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioEnMemoria
+import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositoryImpl
 import pe.edu.upeu.pharmamobil.domain.repository.ClienteRepository
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarClientesUseCase
@@ -15,11 +17,15 @@ import pe.edu.upeu.pharmamobil.domain.usecase.RegistrarClienteUseCase
 import pe.edu.upeu.pharmamobil.domain.usecase.RegistrarProductoUseCase
 import pe.edu.upeu.pharmamobil.presentation.cliente.ClienteViewModel
 import pe.edu.upeu.pharmamobil.presentation.producto.ProductoViewModel
+import pe.edu.upeu.pharmamobil.data.remote.crearHttpClient
 
 
 val dataModule = module {
-    single<ProductoRepository> { ProductoRepositorioEnMemoria() }
+    single { crearHttpClient(get()) }
+    single { ProductoApi(get()) }
+    single<ProductoRepository> { ProductoRepositoryImpl(get()) }
     single<ClienteRepository> { ClienteRepositorioEnMemoria() }
+
 }
 
 val domainModule = module {
