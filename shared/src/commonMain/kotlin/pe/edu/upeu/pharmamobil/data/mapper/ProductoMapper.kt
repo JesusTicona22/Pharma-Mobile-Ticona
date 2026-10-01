@@ -4,16 +4,16 @@ import pe.edu.upeu.pharmamobil.data.remote.dto.ProductoDto
 import pe.edu.upeu.pharmamobil.domain.model.Producto
 
 fun ProductoDto.toDomain(): Producto {
-    // 1. Limpiamos el precio: si viene 0 o negativo de internet, le asignamos 1.0
-    val precioLimpio = if (price > 0) price else 1.0
+    // 1. Limpiamos el precio usando la nueva variable 'precio'
+    val precioLimpio = if (precio > 0) precio else 1.0
 
-    // 2. Limpiamos el nombre: si viene vacío, le ponemos un texto por defecto
-    val nombreLimpio = if (title.isNotBlank()) title else "Producto sin nombre"
+    // 2. Limpiamos el nombre usando la nueva variable 'nombre'
+    val nombreLimpio = if (nombre.isNotBlank()) nombre else "Producto sin nombre"
 
     return Producto(
-        id = id.toLong(),
+        id = id, // Ya es Long desde el backend, no necesita toLong()
         nombre = nombreLimpio,
         precio = precioLimpio,
-        stock = 15 // Stock por defecto
+        stock = stock // Ahora usamos el stock real de tu base de datos Oracle
     )
 }

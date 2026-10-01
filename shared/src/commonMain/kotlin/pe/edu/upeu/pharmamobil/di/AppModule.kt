@@ -23,7 +23,8 @@ import pe.edu.upeu.pharmamobil.data.remote.crearHttpClient
 val dataModule = module {
     single { crearHttpClient(get()) }
     single { ProductoApi(get()) }
-    single<ProductoRepository> { ProductoRepositoryImpl(get()) }
+    single<ProductoRepository> {
+        ProductoRepositoryImpl(api = get())}
     single<ClienteRepository> { ClienteRepositorioEnMemoria() }
 
 }

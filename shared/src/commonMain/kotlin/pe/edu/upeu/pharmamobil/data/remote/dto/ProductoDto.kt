@@ -5,13 +5,22 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ProductoDto(
-    val id: Int,
-    val title: String,
-    val price: Double,
-    val description: String = "",
-    val images: List<String> = emptyList(),
-    @SerialName("category") val categoria: CategoriaDto? = null
+    val id: Long,
+    val nombre: String,
+    val precio: Double,
+    val stock: Int,
+    val estado: Boolean, // El backend lo mapea como Boolean
+    @SerialName("categoria") val categoria: CategoriaDto? = null
 )
 
 @Serializable
-data class CategoriaDto(val id: Int, val name: String)
+data class CategoriaDto(
+    val id: Long,
+    val nombre: String
+)
+
+@Serializable
+data class PaginaProductoDto(
+    val contenido: List<ProductoDto>
+    // Ignoramos pagina, tamanio, etc., porque Ktor lo permite automáticamente
+)

@@ -12,9 +12,14 @@ class ProductoRepositoryImpl(
     override suspend fun listar(): List<Producto> =
         api.obtenerProductos().map { it.toDomain() }
 
-    // El repositorio en memoria tiene este método que la interfaz te exige:
     override suspend fun registrar(producto: Producto): Producto {
-        // Como la Sesión 7 es solo consumo GET, dejamos el post simulado
-        return producto
+        // Enlaza tu modelo de dominio con la llamada HTTP hacia Spring Boot
+        val productoGuardadoDto = api.crear(
+            nombre = producto.nombre,
+            precio = producto.precio,
+            stock = producto.stock
+        )
+        // Convierte el DTO que devuelve Ktor nuevamente a tu modelo de dominio
+        return productoGuardadoDto.toDomain()
     }
 }

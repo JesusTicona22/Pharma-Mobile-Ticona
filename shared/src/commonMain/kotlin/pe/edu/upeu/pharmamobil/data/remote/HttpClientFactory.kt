@@ -30,7 +30,10 @@ fun crearHttpClient(engine: HttpClientEngine): HttpClient = HttpClient(engine) {
     }
     defaultRequest {
         // URL de la API pública para la prueba
-        url("https://api.escuelajs.co/api/v1/")
+        // url("https://api.escuelajs.co/api/v1/")
+
+        // URL de la API Docker BD
+        url("http://10.0.2.2:8080/")
         contentType(ContentType.Application.Json)
     }
 }
