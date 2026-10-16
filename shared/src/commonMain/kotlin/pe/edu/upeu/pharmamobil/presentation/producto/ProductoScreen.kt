@@ -15,11 +15,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,17 +32,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.koin.compose.viewmodel.koinViewModel
 import pe.edu.upeu.pharmamobil.presentation.components.EstadoVacio
 import pe.edu.upeu.pharmamobil.presentation.components.MensajeExito
 import pe.edu.upeu.pharmamobil.presentation.components.ValidatedTextField
+import pe.edu.upeu.pharmamobil.presentation.detalle.DetalleProductoViewModel
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 
 @Composable
 fun ProductoScreen(
     viewModel: ProductoViewModel,
-    modifier: Modifier = Modifier
+    puedeEscribir: Boolean = true,
+    modifier: Modifier = Modifier,
+    detalleViewModel: DetalleProductoViewModel = koinViewModel()
 ) {
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Borra el mensaje automáticamente después de 3 segundos
+    LaunchedEffect(uiState.mensajeExito) {
+        if (uiState.mensajeExito != null) {
+            delay(3000)
+            viewModel.limpiarMensajeExito()
+        }
+    }
+
+// Borra el mensaje apenas el usuario cambia de pantalla o cierra sesión
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.limpiarMensajeExito()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -49,14 +73,17 @@ fun ProductoScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
 
-        FormularioProductoCard(
-            formulario = uiState.formulario,
-            registrando = uiState.registrando,
-            onNombreChange = viewModel::onNombreChange,
-            onPrecioChange = viewModel::onPrecioChange,
-            onStockChange = viewModel::onStockChange,
-            onRegistrar = viewModel::registrar
-        )
+        // Punto 5 del Paso 6: Solo se muestra si el rol tiene CATALOGO_ESCRIBIR
+        if (puedeEscribir) {
+            FormularioProductoCard(
+                formulario = uiState.formulario,
+                registrando = uiState.registrando,
+                onNombreChange = viewModel::onNombreChange,
+                onPrecioChange = viewModel::onPrecioChange,
+                onStockChange = viewModel::onStockChange,
+                onRegistrar = viewModel::registrar
+            )
+        }
 
         uiState.mensajeExito?.let {
             MensajeExito(it)
@@ -92,7 +119,11 @@ fun ProductoScreen(
                     EstadoVacio(
                         icono = Icons.Default.Inventory2,
                         titulo = "Todavía no hay productos",
-                        descripcion = "Registra el primero con el formulario de arriba.",
+                        descripcion = if (puedeEscribir) {
+                            "Registra el primero con el formulario de arriba."
+                        } else {
+                            "No hay productos registrados en el catálogo."
+                        },
                         modifier = Modifier.align(Alignment.Center)
                     )
 
@@ -104,7 +135,10 @@ fun ProductoScreen(
                             items = fase.productos,
                             key = { it.id }
                         ) { producto ->
-                            ProductoItem(producto)
+                            ProductoItem(
+                                producto = producto,
+                                onCompartir = { detalleViewModel.compartir(producto) }
+                            )
                         }
                     }
 
@@ -230,7 +264,8 @@ private fun EncabezadoInventario(
 
 @Composable
 private fun ProductoItem(
-    producto: ProductoUi
+    producto: ProductoUi,
+    onCompartir: () -> Unit = {}
 ) {
 
     Card(
@@ -291,6 +326,14 @@ private fun ProductoItem(
                         )
                     )
                 }
+            }
+
+            IconButton(onClick = onCompartir) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Compartir producto",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

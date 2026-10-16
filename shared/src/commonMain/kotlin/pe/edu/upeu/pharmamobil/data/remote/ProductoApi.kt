@@ -10,7 +10,6 @@ import kotlinx.serialization.Serializable
 import pe.edu.upeu.pharmamobil.data.remote.dto.PaginaProductoDto
 import pe.edu.upeu.pharmamobil.data.remote.dto.ProductoDto
 
-// 1. Creamos el DTO exacto que exige el profesor para enviar[cite: 7]
 @Serializable
 data class ProductoRequestDto(
     val nombre: String,
@@ -22,18 +21,16 @@ data class ProductoRequestDto(
 
 class ProductoApi(private val client: HttpClient) {
 
-    // Función para LEER la lista (la que ya tenías)
+    // Como defaultRequest ya tiene "http://10.0.2.2:8080/api/v1/", aquí solo ponemos "productos"
     suspend fun obtenerProductos(limite: Int = 10): List<ProductoDto> {
-        val respuestaPaginada = client.get("api/v1/productos") {
+        val respuestaPaginada = client.get("productos") {
             parameter("tamanio", limite)
         }.body<PaginaProductoDto>()
 
         return respuestaPaginada.contenido
     }
 
-    // 2. NUEVA Función para GUARDAR el producto[cite: 7]
     suspend fun crear(nombre: String, precio: Double, stock: Int): ProductoDto {
-        // Armamos el paquete de envío fijando la categoría 1[cite: 7]
         val request = ProductoRequestDto(
             nombre = nombre,
             precio = precio,
@@ -42,8 +39,7 @@ class ProductoApi(private val client: HttpClient) {
             categoriaId = 1L
         )
 
-        // Lo enviamos por POST a tu Spring Boot[cite: 7]
-        return client.post("api/v1/productos") {
+        return client.post("productos") {
             setBody(request)
         }.body()
     }

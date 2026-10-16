@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import pe.edu.upeu.pharmamobil.domain.model.Sesion
 import pe.edu.upeu.pharmamobil.navigation.Screen
 
 /** Cada acceso rapido de la portada lleva a uno de los modulos de la app. */
@@ -34,35 +35,43 @@ private data class Opcion(
     val screen: Screen,
     val icono: ImageVector,
     val titulo: String,
-    val descripcion: String
+    val descripcion: String,
+    val permisoRequerido: String? = null
 )
 
 private val OPCIONES = listOf(
     Opcion(
         screen = Screen.Productos,
         icono = Icons.Default.Medication,
-        titulo = "Registrar productos",
-        descripcion = "Da de alta medicamentos con su precio y su stock."
+        titulo = "Catálogo de productos",
+        descripcion = "Consulta medicamentos y gestiona su precio y stock.",
+        permisoRequerido = "CATALOGO_LEER"
     ),
     Opcion(
         screen = Screen.Clientes,
         icono = Icons.Default.Person,
         titulo = "Registrar clientes",
-        descripcion = "Guarda los datos de contacto para la boleta."
+        descripcion = "Guarda los datos de contacto para la boleta.",
+        permisoRequerido = "CLIENTES_LEER"
     ),
     Opcion(
         screen = Screen.Pedidos,
         icono = Icons.Default.ShoppingCart,
         titulo = "Revisar pedidos",
-        descripcion = "Disponible en una próxima sesión del curso."
+        descripcion = "Disponible en una próxima sesión del curso.",
+        permisoRequerido = "VENTAS_LEER"
     )
 )
 
 @Composable
 fun InicioScreen(
     onNavegar: (Screen) -> Unit,
+    sesion: Sesion? = null,
     modifier: Modifier = Modifier
 ) {
+    val opcionesPermitidas = OPCIONES.filter { opcion ->
+        opcion.permisoRequerido == null || sesion?.puede(opcion.permisoRequerido) != false
+    }
 
     Column(
         modifier = modifier
@@ -79,7 +88,7 @@ fun InicioScreen(
             style = MaterialTheme.typography.titleMedium
         )
 
-        OPCIONES.forEach { opcion ->
+        opcionesPermitidas.forEach { opcion ->
 
             AccesoRapido(
                 icono = opcion.icono,

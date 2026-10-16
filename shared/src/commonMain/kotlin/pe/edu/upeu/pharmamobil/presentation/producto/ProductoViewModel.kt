@@ -134,4 +134,7 @@ class ProductoViewModel(
             )
         }
     }
+    fun limpiarMensajeExito() {
+        _uiState.update { it.copy(mensajeExito = null) }
+    }
 }
