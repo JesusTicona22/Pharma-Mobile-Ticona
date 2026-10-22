@@ -9,7 +9,7 @@ import pe.edu.upeu.pharmamobil.data.remote.ProductoApi
 import pe.edu.upeu.pharmamobil.data.remote.crearHttpClient
 import pe.edu.upeu.pharmamobil.data.repository.AuthRepositorioRest
 import pe.edu.upeu.pharmamobil.data.repository.ClienteRepositorioEnMemoria
-import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositoryImpl
+import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioOffline
 import pe.edu.upeu.pharmamobil.domain.repository.AuthRepository
 import pe.edu.upeu.pharmamobil.domain.repository.ClienteRepository
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
@@ -24,15 +24,29 @@ import pe.edu.upeu.pharmamobil.presentation.cliente.ClienteViewModel
 import pe.edu.upeu.pharmamobil.presentation.detalle.DetalleProductoViewModel
 import pe.edu.upeu.pharmamobil.presentation.producto.ProductoViewModel
 import pe.edu.upeu.pharmamobil.presentation.sesion.SesionViewModel
+import pe.edu.upeu.pharmamobil.db.PharmaDb
+import pe.edu.upeu.pharmamobil.data.local.CreadorDeDriver
+import pe.edu.upeu.pharmamobil.data.local.ProductoLocal
+import pe.edu.upeu.pharmamobil.domain.usecase.SincronizarProductosUseCase
 
 val dataModule = module {
     single { crearHttpClient(motor = get(), almacen = get()) }
     single { ProductoApi(get()) }
+
+    // 1. Base de datos SQLDelight (Sesión 11)
+    single { PharmaDb(get<CreadorDeDriver>().crear()) }
+
+    // 2. Capa local que traduce SQLite a Dominio
+    single { ProductoLocal(base = get()) }
+
+    // 3. CAMBIO CLAVE: Ahora inyectamos el repositorio Offline-First
     single<ProductoRepository> {
-        ProductoRepositoryImpl(api = get())
+        ProductoRepositorioOffline(local = get(), remoto = get())
     }
+
     single<ClienteRepository> { ClienteRepositorioEnMemoria() }
-    // NUEVO: Repositorio de Autenticación JWT (Sesión 10)
+
+    // Repositorio de Autenticación JWT (Sesión 10)
     single<AuthRepository> { AuthRepositorioRest(cliente = get(), almacen = get()) }
 }
 
@@ -41,17 +55,21 @@ val domainModule = module {
     factory { ListarProductosUseCase(get()) }
     factory { RegistrarClienteUseCase(get()) }
     factory { ListarClientesUseCase(get()) }
-    // NUEVO: Casos de uso de Sesión (Sesión 10)
+
+    // Casos de uso de Sesión (Sesión 10)
     factory { IniciarSesionUseCase(get()) }
     factory { ObtenerSesionGuardadaUseCase(get()) }
     factory { CerrarSesionUseCase(get()) }
+
+    factory { SincronizarProductosUseCase(get()) }
 }
 
 val presentationModule = module {
     viewModelOf(::ProductoViewModel)
     viewModelOf(::ClienteViewModel)
     viewModelOf(::DetalleProductoViewModel)
-    // NUEVO: ViewModel de Sesión (Sesión 10)
+
+    // ViewModel de Sesión (Sesión 10)
     viewModelOf(::SesionViewModel)
 }
 

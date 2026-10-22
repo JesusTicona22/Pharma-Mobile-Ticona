@@ -1,12 +1,15 @@
 package pe.edu.upeu.pharmamobil.domain.repository
 
+import kotlinx.coroutines.flow.Flow
 import pe.edu.upeu.pharmamobil.domain.model.Producto
 
 interface ProductoRepository {
+    /** La pantalla se suscribe una vez y se actualiza sola. */
+    fun observar(): Flow<List<Producto>>
 
-    /** Incorpora el producto al inventario y devuelve el producto ya identificado. */
+    /** Guarda en local; intenta enviar si hay conexión. */
     suspend fun registrar(producto: Producto): Producto
 
-    /** Entrega el inventario completo en el orden en que fue registrado. */
-    suspend fun listar(): List<Producto>
+    /** Sube lo pendiente y luego trae la lista del servidor. */
+    suspend fun sincronizar()
 }

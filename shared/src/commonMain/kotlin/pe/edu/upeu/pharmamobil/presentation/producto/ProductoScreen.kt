@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,21 +28,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import pe.edu.upeu.pharmamobil.presentation.components.EstadoVacio
 import pe.edu.upeu.pharmamobil.presentation.components.MensajeExito
 import pe.edu.upeu.pharmamobil.presentation.components.ValidatedTextField
 import pe.edu.upeu.pharmamobil.presentation.detalle.DetalleProductoViewModel
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
 
 @Composable
 fun ProductoScreen(
@@ -59,7 +63,7 @@ fun ProductoScreen(
         }
     }
 
-// Borra el mensaje apenas el usuario cambia de pantalla o cierra sesión
+    // Borra el mensaje apenas el usuario cambia de pantalla o cierra sesión
     DisposableEffect(Unit) {
         onDispose {
             viewModel.limpiarMensajeExito()
@@ -70,10 +74,10 @@ fun ProductoScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
-        // Punto 5 del Paso 6: Solo se muestra si el rol tiene CATALOGO_ESCRIBIR
+        // Solo se muestra si el rol tiene CATALOGO_ESCRIBIR
         if (puedeEscribir) {
             FormularioProductoCard(
                 formulario = uiState.formulario,
@@ -85,11 +89,42 @@ fun ProductoScreen(
             )
         }
 
+        // Aviso de modo offline (Paso 5 y 6 de la Guía 11)
+        uiState.avisoRed?.let { aviso ->
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = aviso,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
         uiState.mensajeExito?.let {
             MensajeExito(it)
         }
 
-        EncabezadoInventario(uiState.fase)
+        EncabezadoInventario(
+            fase = uiState.fase,
+            sincronizando = uiState.sincronizando,
+            onSincronizar = viewModel::sincronizar
+        )
 
         Box(
             modifier = Modifier
@@ -150,7 +185,7 @@ fun ProductoScreen(
                         colorIcono = MaterialTheme.colorScheme.error,
                         modifier = Modifier.align(Alignment.Center),
                         accion = {
-                            FilledTonalButton(onClick = viewModel::cargarProductos) {
+                            FilledTonalButton(onClick = viewModel::sincronizar) {
                                 Text("Reintentar")
                             }
                         }
@@ -234,7 +269,9 @@ private fun FormularioProductoCard(
 
 @Composable
 private fun EncabezadoInventario(
-    fase: ProductoUiState.Fase
+    fase: ProductoUiState.Fase,
+    sincronizando: Boolean,
+    onSincronizar: () -> Unit
 ) {
 
     Row(
@@ -257,6 +294,21 @@ private fun EncabezadoInventario(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        TextButton(
+            onClick = onSincronizar,
+            enabled = !sincronizando
+        ) {
+            Icon(
+                imageVector = Icons.Default.Sync,
+                contentDescription = "Sincronizar",
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(if (sincronizando) "Sincronizando…" else "Sincronizar")
         }
     }
 }
@@ -307,6 +359,21 @@ private fun ProductoItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // Indicador visual sutil cuando el producto aún tiene ID negativo (pendiente de subir)
+            if (producto.id < 0) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ) {
+                    Text(
+                        text = "Pendiente",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
             if (producto.requiereReposicion) {

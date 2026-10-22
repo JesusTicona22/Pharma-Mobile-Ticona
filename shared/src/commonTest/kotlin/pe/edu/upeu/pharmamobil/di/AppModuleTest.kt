@@ -9,7 +9,7 @@ import org.koin.core.Koin
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import pe.edu.upeu.pharmamobil.data.repository.ClienteRepositorioEnMemoria
-import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioEnMemoria
+import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioOffline // <-- NUEVO IMPORT
 import pe.edu.upeu.pharmamobil.domain.repository.ClienteRepository
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarClientesUseCase
@@ -25,13 +25,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertSame
 
 /**
- * Comprueba que el grafo se ensambla sin arrancar la aplicacion: si una
- * definicion falta o esta declarada con el tipo equivocado, falla aqui.
- *
- * Se cargan los cuatro modulos, incluido presentationModule: construir un
- * ViewModel es justo lo que se rompe al cambiar un constructor, y antes era
- * lo unico que el grafo no cubria. Como los ViewModel arrancan una carga en
- * su init, hace falta un Dispatchers.Main de prueba.
+ * Comprueba que el grafo se ensambla sin arrancar la aplicacion.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppModuleTest {
@@ -56,7 +50,8 @@ class AppModuleTest {
 
         val koin = grafoCompleto()
 
-        assertIs<ProductoRepositorioEnMemoria>(koin.get<ProductoRepository>())
+        // CAMBIO CLAVE: Ahora verificamos que resuelva a la versión Offline-First
+        assertIs<ProductoRepositorioOffline>(koin.get<ProductoRepository>())
         assertIs<ClienteRepositorioEnMemoria>(koin.get<ClienteRepository>())
     }
 

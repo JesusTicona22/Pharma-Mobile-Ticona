@@ -5,9 +5,12 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    kotlin("plugin.serialization") version "2.0.0" // Usa la versión de Kotlin que tenga
+    kotlin("plugin.serialization") version "2.0.0"
+    id("app.cash.sqldelight") version "2.1.0"
 }
-val ktor = "2.3.11" // Usa una versión estable de Ktor 2.x si tu Kotlin es 1.9.x o 2.0.x
+
+val ktor = "2.3.11"
+val sqldelight = "2.1.0"
 
 kotlin {
     listOf(
@@ -19,39 +22,38 @@ kotlin {
             isStatic = true
         }
     }
-    
-    android {
-       namespace = "pe.edu.upeu.pharmamobil.shared"
-       compileSdk = libs.versions.android.compileSdk.get().toInt()
-       minSdk = libs.versions.android.minSdk.get().toInt()
-    
-       compilerOptions {
-           jvmTarget = JvmTarget.JVM_11
-       }
-       androidResources {
-           enable = true
-       }
-       withHostTest {
-           isIncludeAndroidResources = true
-       }
-       withDeviceTestBuilder {
-           sourceSetTreeName = "test"
-       }.configure {
-           instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-       }
+
+    androidLibrary {
+        namespace = "pe.edu.upeu.pharmamobil.shared"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_11
+        }
+        androidResources {
+            enable = true
+        }
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }.configure {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
     }
-    
+
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
-            // api: MainApplication (androidApp) usa androidContext() al arrancar Koin.
             api(libs.koin.android)
             implementation("io.ktor:ktor-client-okhttp:${ktor}")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            implementation("app.cash.sqldelight:android-driver:${sqldelight}")
         }
         commonMain.dependencies {
-            // api: androidApp llama a initKoin(), cuya firma expone KoinAppDeclaration.
             api(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
@@ -69,13 +71,27 @@ kotlin {
             implementation("io.ktor:ktor-serialization-kotlinx-json:${ktor}")
             implementation("io.ktor:ktor-client-logging:${ktor}")
             implementation("io.ktor:ktor-client-auth:${ktor}")
+            implementation("app.cash.sqldelight:runtime:${sqldelight}")
+            implementation("app.cash.sqldelight:coroutines-extensions:${sqldelight}")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        named("androidHostTest").dependencies {
+            implementation("app.cash.sqldelight:sqlite-driver:${sqldelight}")
+        }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:${ktor}")
+            implementation("app.cash.sqldelight:native-driver:${sqldelight}")
+        }
+    }
+}
+
+sqldelight {
+    databases {
+        create("PharmaDb") {
+            packageName.set("pe.edu.upeu.pharmamobil.db")
         }
     }
 }
@@ -83,6 +99,7 @@ kotlin {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
+
 tasks.withType<Test>().configureEach {
     testLogging {
         showStandardStreams = true

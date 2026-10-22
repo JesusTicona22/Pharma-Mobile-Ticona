@@ -9,8 +9,17 @@ data class ProductoDto(
     val nombre: String,
     val precio: Double,
     val stock: Int,
-    val estado: Boolean, // El backend lo mapea como Boolean
+    val estado: Boolean = true,
     @SerialName("categoria") val categoria: CategoriaDto? = null
+)
+
+@Serializable
+data class CrearProductoRequestDto(
+    val nombre: String,
+    val precio: Double,
+    val stock: Int,
+    val estado: Boolean = true,
+    val categoriaId: Long = 1L
 )
 
 @Serializable
@@ -22,5 +31,4 @@ data class CategoriaDto(
 @Serializable
 data class PaginaProductoDto(
     val contenido: List<ProductoDto>
-    // Ignoramos pagina, tamanio, etc., porque Ktor lo permite automáticamente
 )

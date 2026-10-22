@@ -10,48 +10,54 @@ import kotlinx.coroutines.launch
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarProductosUseCase
 import pe.edu.upeu.pharmamobil.domain.usecase.ProductoInvalidoException
 import pe.edu.upeu.pharmamobil.domain.usecase.RegistrarProductoUseCase
-
+import pe.edu.upeu.pharmamobil.domain.usecase.SincronizarProductosUseCase
 
 class ProductoViewModel(
     private val registrarProducto: RegistrarProductoUseCase,
-    private val listarProductos: ListarProductosUseCase
+    private val listarProductos: ListarProductosUseCase,
+    private val sincronizarProductos: SincronizarProductosUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProductoUiState())
     val uiState: StateFlow<ProductoUiState> = _uiState.asStateFlow()
 
     init {
-        cargarProductos()
+        observarInventarioLocal()
+        sincronizar()
     }
 
-    fun cargarProductos() {
-
+    private fun observarInventarioLocal() {
         viewModelScope.launch {
-
-            _uiState.update {
-                it.copy(fase = ProductoUiState.Fase.Cargando)
-            }
-
-            val fase = listarProductos().fold(
-                onSuccess = { productos ->
-                    if (productos.isEmpty()) {
-                        ProductoUiState.Fase.SinProductos
-                    } else {
-                        ProductoUiState.Fase.ConProductos(productos.map { it.aUi() })
-                    }
-                },
-                onFailure = { fallo ->
-                    ProductoUiState.Fase.Error(
-                        fallo.message ?: "No se pudo cargar el inventario"
-                    )
+            listarProductos().collect { productos ->
+                val fase = if (productos.isEmpty()) {
+                    ProductoUiState.Fase.SinProductos
+                } else {
+                    ProductoUiState.Fase.ConProductos(productos.map { it.aUi() })
                 }
-            )
-
-            _uiState.update {
-                it.copy(fase = fase)
+                _uiState.update {
+                    it.copy(fase = fase)
+                }
             }
         }
     }
+
+    fun sincronizar() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(sincronizando = true) }
+            val resultado = sincronizarProductos()
+            _uiState.update {
+                it.copy(
+                    sincronizando = false,
+                    avisoRed = resultado.exceptionOrNull()?.let {
+                        "Sin conexión: mostrando datos guardados"
+                    }
+                )
+            }
+        }
+    }
+
+    // Mantenemos este alias por si ProductoScreen o algún test llama a cargarProductos()
+    fun cargarProductos() = sincronizar()
 
     fun onNombreChange(nombre: String) {
         _uiState.update {
@@ -81,11 +87,9 @@ class ProductoViewModel(
     }
 
     fun registrar() {
-
         if (_uiState.value.registrando) return
 
         viewModelScope.launch {
-
             _uiState.update {
                 it.copy(registrando = true, mensajeExito = null)
             }
@@ -105,11 +109,11 @@ class ProductoViewModel(
                             mensajeExito = "Producto \"${producto.nombre}\" registrado correctamente"
                         )
                     }
-                    cargarProductos()
+                    // Intentamos actualizar el estado del aviso de red tras registrar
+                    sincronizar()
                 },
                 onFailure = { fallo ->
                     when (fallo) {
-
                         is ProductoInvalidoException -> _uiState.update {
                             it.copy(
                                 registrando = false,
@@ -134,6 +138,7 @@ class ProductoViewModel(
             )
         }
     }
+
     fun limpiarMensajeExito() {
         _uiState.update { it.copy(mensajeExito = null) }
     }
