@@ -2,35 +2,88 @@ package pe.edu.upeu.pharmamobil.data.local
 
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOne
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import pe.edu.upeu.pharmamobil.db.PharmaDb
 import pe.edu.upeu.pharmamobil.domain.model.Producto
 
-class ProductoLocal(base: PharmaDb) {
-    private val consultas = base.productoQueries
+data class FilaPendienteProducto(
+    val producto: Producto,
+    val intentos: Int,
+    val ultimoError: String?
+)
+
+class ProductoLocal(
+    private val base: PharmaDb
+) {
+    private val consultas get() = base.productoQueries
 
     fun observar(): Flow<List<Producto>> =
-        consultas.listarTodos()
+        consultas.todos { id, nombre, precio, stock, _, _, _ ->
+            Producto(id = id, nombre = nombre, precio = precio, stock = stock.toInt())
+        }.asFlow().mapToList(Dispatchers.Default)
+
+    fun observarPendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Flow<Int> =
+        consultas.contarPendientes(maxIntentos.toLong())
             .asFlow()
-            .mapToList(Dispatchers.Default)
-            .map { filas -> filas.map { it.aDominio() } }
+            .mapToOne(Dispatchers.Default)
+            .map { it.toInt() }
 
-    fun pendientes(): List<Producto> =
-        consultas.listarPendientes().executeAsList()
-            .map { it.aDominio() }
+    fun observarFallidas(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Flow<Int> =
+        consultas.contarFallidas(maxIntentos.toLong())
+            .asFlow()
+            .mapToOne(Dispatchers.Default)
+            .map { it.toInt() }
 
-    fun guardarPendiente(producto: Producto): Producto {
-        val menor = consultas.siguienteIdLocal().executeAsOne()
-        // Garantiza que los IDs creados sin red sean negativos (ej. -1, -2) para que no choquen con el servidor
-        val local = producto.copy(id = minOf(menor, 0L) - 1L)
+    fun contarPendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Int =
+        consultas.contarPendientes(maxIntentos.toLong()).executeAsOne().toInt()
 
-        consultas.insertar(
-            local.id, local.nombre, local.precio,
-            local.stock.toLong(), 1L // 1L = Pendiente por subir
-        )
-        return local
+    fun pendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): List<Producto> =
+        consultas.pendientesPorEnviar(maxIntentos.toLong()) { id, nombre, precio, stock, _, _, _ ->
+            Producto(id = id, nombre = nombre, precio = precio, stock = stock.toInt())
+        }.executeAsList()
+
+    fun pendientesConEstado(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): List<FilaPendienteProducto> =
+        consultas.pendientesPorEnviar(maxIntentos.toLong()) { id, nombre, precio, stock, _, intentos, ultimoError ->
+            FilaPendienteProducto(
+                producto = Producto(id = id, nombre = nombre, precio = precio, stock = stock.toInt()),
+                intentos = intentos.toInt(),
+                ultimoError = ultimoError
+            )
+        }.executeAsList()
+
+    fun guardarPendiente(producto: Producto): Producto =
+        base.transactionWithResult {
+            val minimoActual = consultas.menorId().executeAsOne()
+            val idTemporal = if (minimoActual <= 0L) minimoActual - 1L else -1L
+            consultas.insertar(
+                idTemporal,
+                producto.nombre,
+                producto.precio,
+                producto.stock.toLong(),
+                1L,
+                0L,
+                null
+            )
+            producto.copy(id = idTemporal)
+        }
+
+    fun confirmar(idLocal: Long, idServidor: Long) {
+        base.transaction {
+            val fila = consultas.porId(idLocal).executeAsOneOrNull() ?: return@transaction
+            consultas.borrarPorId(idLocal)
+            consultas.insertar(
+                idServidor,
+                fila.nombre,
+                fila.precio,
+                fila.stock,
+                0L,
+                0L,
+                null
+            )
+        }
     }
 
     fun marcarComoSubido(producto: Producto) {
@@ -39,29 +92,30 @@ class ProductoLocal(base: PharmaDb) {
             producto.nombre,
             producto.precio,
             producto.stock.toLong(),
-            0L // Pasa a pendiente = 0 para ser reemplazado por el ID real del servidor
+            0L,
+            0L,
+            null
         )
     }
 
+    fun sumarIntento(id: Long, motivo: String) {
+        consultas.sumarIntento(motivo, id)
+    }
+
+    fun marcarFallida(id: Long, motivo: String, maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO) {
+        consultas.marcarFallida(maxIntentos.toLong(), motivo, id)
+    }
+
     fun reemplazarSincronizados(productos: List<Producto>) {
-        consultas.transaction {
+        base.transaction {
             consultas.borrarSincronizados()
-            productos.forEach {
-                consultas.insertar(
-                    it.id, it.nombre, it.precio,
-                    it.stock.toLong(), 0L // 0L = Ya sincronizado con el servidor
-                )
+            productos.forEach { p ->
+                consultas.insertar(p.id, p.nombre, p.precio, p.stock.toLong(), 0L, 0L, null)
             }
         }
     }
-}
 
-// Función traductora de la fila generada por SQLDelight a tu modelo de dominio
-private fun pe.edu.upeu.pharmamobil.db.Producto.aDominio(): Producto {
-    return Producto(
-        id = this.id,
-        nombre = this.nombre,
-        precio = this.precio,
-        stock = this.stock.toInt()
-    )
+    companion object {
+        const val MAX_INTENTOS_POR_DEFECTO = 5
+    }
 }

@@ -1,35 +1,31 @@
 package pe.edu.upeu.pharmamobil.data.repository
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import pe.edu.upeu.pharmamobil.domain.model.Producto
+import pe.edu.upeu.pharmamobil.domain.model.ResumenSync
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 
-/**
- * Doble del inventario para las pruebas: sin delay y capaz de fallar a
- * voluntad. Sin el, probar el camino de error del caso de uso o del ViewModel
- * era imposible, porque el repositorio en memoria nunca falla.
- */
-class FakeProductoRepository(
-    private val productos: MutableList<Producto> = mutableListOf()
-) : ProductoRepository {
+class FakeProductoRepository : ProductoRepository {
+    var deberiaFallar = false
+    private val productos = mutableListOf<Producto>()
+    private var nextId = 1L
 
-    var fallaAlRegistrar: Throwable? = null
-    var fallaAlListar: Throwable? = null
+    override fun observar(): Flow<List<Producto>> = flowOf(productos)
 
-    private var siguienteId = 1L
+    override fun observarPendientes(): Flow<Int> = flowOf(0)
+
+    override fun observarFallidas(): Flow<Int> = flowOf(0)
 
     override suspend fun registrar(producto: Producto): Producto {
-
-        fallaAlRegistrar?.let { throw it }
-
-        val guardado = producto.copy(id = siguienteId++)
+        if (deberiaFallar) throw Exception("Error forzado al registrar")
+        val guardado = producto.copy(id = nextId++)
         productos.add(guardado)
         return guardado
     }
 
-    override suspend fun listar(): List<Producto> {
-
-        fallaAlListar?.let { throw it }
-
-        return productos.toList()
+    override suspend fun sincronizar(): ResumenSync {
+        if (deberiaFallar) throw Exception("Error forzado al sincronizar")
+        return ResumenSync(enviadas = 0, fallidas = 0, pendientes = 0)
     }
 }

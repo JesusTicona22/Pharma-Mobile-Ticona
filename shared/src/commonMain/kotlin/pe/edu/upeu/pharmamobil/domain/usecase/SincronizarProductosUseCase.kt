@@ -1,11 +1,12 @@
 package pe.edu.upeu.pharmamobil.domain.usecase
 
+import pe.edu.upeu.pharmamobil.domain.model.ResumenSync
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 
 class SincronizarProductosUseCase(
     private val productoRepository: ProductoRepository
 ) {
-    suspend operator fun invoke(): Result<Unit> = resultadoDe {
+    suspend operator fun invoke(): Result<ResumenSync> = resultadoDe {
         productoRepository.sincronizar()
     }
 }

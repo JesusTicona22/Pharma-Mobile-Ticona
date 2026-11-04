@@ -6,4 +6,8 @@ plugins {
     alias(libs.plugins.composeMultiplatform) apply false
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+
+    // Declaración de plugins de Firebase en el proyecto raíz
+    id("com.google.gms.google-services") version "4.4.1" apply false
+    id("com.google.firebase.crashlytics") version "3.0.1" apply false
 }

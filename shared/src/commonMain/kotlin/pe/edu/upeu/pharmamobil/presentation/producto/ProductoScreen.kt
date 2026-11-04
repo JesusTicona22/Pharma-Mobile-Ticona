@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Share
@@ -54,6 +55,8 @@ fun ProductoScreen(
 ) {
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // NUEVO: Observamos el estado de sincronización de SQLite (Paso 4 - Sesión 13)
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
 
     // Borra el mensaje automáticamente después de 3 segundos
     LaunchedEffect(uiState.mensajeExito) {
@@ -89,8 +92,8 @@ fun ProductoScreen(
             )
         }
 
-        // Aviso de modo offline (Paso 5 y 6 de la Guía 11)
-        uiState.avisoRed?.let { aviso ->
+        // Aviso de modo offline refinado con conteo de pendientes y fallidas (Guía 13)
+        if (syncState.pendientes > 0 || syncState.fallidas > 0 || uiState.avisoRed != null) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -103,15 +106,31 @@ fun ProductoScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CloudOff,
+                        imageVector = if (syncState.fallidas > 0) Icons.Default.Error else Icons.Default.CloudOff,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(18.dp),
+                        tint = if (syncState.fallidas > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer
                     )
-                    Text(
-                        text = aviso,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = uiState.avisoRed ?: "Sin conexión",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (syncState.fallidas > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        if (syncState.pendientes > 0) {
+                            Text(
+                                text = "${syncState.pendientes} cambios por enviar",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        if (syncState.fallidas > 0) {
+                            Text(
+                                text = "${syncState.fallidas} filas fallaron permanentemente",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -185,7 +204,7 @@ fun ProductoScreen(
                         colorIcono = MaterialTheme.colorScheme.error,
                         modifier = Modifier.align(Alignment.Center),
                         accion = {
-                            FilledTonalButton(onClick = viewModel::sincronizar) {
+                            FilledTonalButton(onClick = viewModel::cargarProductos) {
                                 Text("Reintentar")
                             }
                         }
@@ -361,7 +380,6 @@ private fun ProductoItem(
                 )
             }
 
-            // Indicador visual sutil cuando el producto aún tiene ID negativo (pendiente de subir)
             if (producto.id < 0) {
                 Surface(
                     shape = MaterialTheme.shapes.small,

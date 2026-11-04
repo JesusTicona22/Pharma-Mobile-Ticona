@@ -73,10 +73,15 @@ kotlin {
             implementation("io.ktor:ktor-client-auth:${ktor}")
             implementation("app.cash.sqldelight:runtime:${sqldelight}")
             implementation("app.cash.sqldelight:coroutines-extensions:${sqldelight}")
+
+            // Firebase Multiplataforma (GitLive) - Paso 6 Guía 13
+            implementation("dev.gitlive:firebase-crashlytics:2.7.0")
+            implementation("dev.gitlive:firebase-messaging:2.7.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
+            implementation("io.ktor:ktor-client-mock:${ktor}")
         }
         named("androidHostTest").dependencies {
             implementation("app.cash.sqldelight:sqlite-driver:${sqldelight}")

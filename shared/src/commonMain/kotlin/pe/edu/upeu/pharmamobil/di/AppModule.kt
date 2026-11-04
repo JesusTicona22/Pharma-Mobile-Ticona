@@ -28,6 +28,8 @@ import pe.edu.upeu.pharmamobil.db.PharmaDb
 import pe.edu.upeu.pharmamobil.data.local.CreadorDeDriver
 import pe.edu.upeu.pharmamobil.data.local.ProductoLocal
 import pe.edu.upeu.pharmamobil.domain.usecase.SincronizarProductosUseCase
+import pe.edu.upeu.pharmamobil.domain.port.Telemetria
+import pe.edu.upeu.pharmamobil.data.firebase.TelemetriaFirebase
 
 val dataModule = module {
     single { crearHttpClient(motor = get(), almacen = get()) }
@@ -48,6 +50,7 @@ val dataModule = module {
 
     // Repositorio de Autenticación JWT (Sesión 10)
     single<AuthRepository> { AuthRepositorioRest(cliente = get(), almacen = get()) }
+    single<Telemetria> { TelemetriaFirebase() }
 }
 
 val domainModule = module {
