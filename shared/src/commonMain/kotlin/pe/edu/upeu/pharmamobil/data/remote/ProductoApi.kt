@@ -2,7 +2,6 @@ package pe.edu.upeu.pharmamobil.data.remote
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -16,6 +15,7 @@ import pe.edu.upeu.pharmamobil.data.remote.dto.CrearProductoRequestDto
 import pe.edu.upeu.pharmamobil.data.remote.dto.PaginaProductoDto
 import pe.edu.upeu.pharmamobil.data.remote.dto.ProductoDto
 import pe.edu.upeu.pharmamobil.domain.model.Producto
+import pe.edu.upeu.pharmamobil.domain.model.ResultadoEnvio
 
 class ProductoApi(private val client: HttpClient) {
 
@@ -27,10 +27,13 @@ class ProductoApi(private val client: HttpClient) {
         return respuestaPaginada.contenido
     }
 
-    suspend fun registrar(producto: Producto) {
-        try {
+    /**
+     * Paso 3 (Sesión 13): Traduce la respuesta o error de red a ResultadoEnvio
+     * distinguiendo fallo Transitorio (reintentable) de Permanente (no reintentable).
+     */
+    suspend fun enviar(producto: Producto): ResultadoEnvio {
+        return try {
             val respuesta = client.post("productos") {
-                // Desactivamos expectSuccess aquí para que 409 Conflict no lance excepción automática
                 expectSuccess = false
                 contentType(ContentType.Application.Json)
                 setBody(
@@ -43,18 +46,35 @@ class ProductoApi(private val client: HttpClient) {
                     )
                 )
             }
-            val sincronizadoConExito =
-                respuesta.status.isSuccess() || respuesta.status == HttpStatusCode.Conflict
 
-            if (!sincronizadoConExito) {
-                throw IllegalStateException("Error al sincronizar: HTTP ${respuesta.status.value}")
+            when {
+                respuesta.status.isSuccess() -> {
+                    val idServidor = runCatching { respuesta.body<ProductoDto>().id }
+                        .getOrDefault(0L)
+                    ResultadoEnvio.Exito(idServidor)
+                }
+                respuesta.status == HttpStatusCode.Unauthorized ->
+                    ResultadoEnvio.Permanente("Sesión vencida")
+                respuesta.status == HttpStatusCode.Forbidden ->
+                    ResultadoEnvio.Permanente("Sin privilegios para registrar")
+                respuesta.status == HttpStatusCode.Conflict ->
+                    ResultadoEnvio.Permanente("Conflicto: ya existe un producto con ese nombre")
+                respuesta.status == HttpStatusCode.BadRequest ||
+                        respuesta.status == HttpStatusCode.UnprocessableEntity ->
+                    ResultadoEnvio.Permanente("Datos inválidos rechazados por el servidor")
+                respuesta.status == HttpStatusCode.NotFound ->
+                    ResultadoEnvio.Permanente("Recurso o categoría no encontrada")
+                respuesta.status.value in 500..599 ||
+                        respuesta.status == HttpStatusCode.RequestTimeout ->
+                    ResultadoEnvio.Transitorio("Servidor no disponible (HTTP ${respuesta.status.value})")
+                else ->
+                    ResultadoEnvio.Transitorio("Error temporal (HTTP ${respuesta.status.value})")
             }
-        } catch (e: ClientRequestException) {
-            // Por si algún validador global intercepta el 409 antes:
-            if (e.response.status == HttpStatusCode.Conflict) {
-                return // Ya existe en el servidor, lo damos por sincronizado
-            }
-            throw e
+        } catch (e: Exception) {
+            ResultadoEnvio.Transitorio(e.message ?: "Sin conexión con el servidor")
         }
     }
+
+    // Mantenemos registrar() delegando a enviar() por compatibilidad
+    suspend fun registrar(producto: Producto): ResultadoEnvio = enviar(producto)
 }
