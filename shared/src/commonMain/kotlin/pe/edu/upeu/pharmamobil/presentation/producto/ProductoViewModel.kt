@@ -3,10 +3,14 @@ package pe.edu.upeu.pharmamobil.presentation.producto
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarProductosUseCase
 import pe.edu.upeu.pharmamobil.domain.usecase.ProductoInvalidoException
 import pe.edu.upeu.pharmamobil.domain.usecase.RegistrarProductoUseCase
@@ -15,11 +19,28 @@ import pe.edu.upeu.pharmamobil.domain.usecase.SincronizarProductosUseCase
 class ProductoViewModel(
     private val registrarProducto: RegistrarProductoUseCase,
     private val listarProductos: ListarProductosUseCase,
-    private val sincronizarProductos: SincronizarProductosUseCase
+    private val sincronizarProductos: SincronizarProductosUseCase,
+    private val repository: ProductoRepository // Inyectado para observar pendientes/fallidas
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProductoUiState())
     val uiState: StateFlow<ProductoUiState> = _uiState.asStateFlow()
+
+    private val _enCurso = MutableStateFlow(false)
+
+    // Combinamos las consultas observables de la base local (Paso 4 - Sesión 13)
+    val syncState: StateFlow<SincronizacionUiState> = combine(
+        repository.observarPendientes(),
+        repository.observarFallidas(),
+        _enCurso
+    ) { pend, fall, curso ->
+        SincronizacionUiState(
+            enCurso = curso,
+            pendientes = pend,
+            fallidas = fall,
+            ultimaSync = null // En sesión 14 se implementará con Preferences DataStore
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SincronizacionUiState())
 
     init {
         observarInventarioLocal()
@@ -43,20 +64,23 @@ class ProductoViewModel(
 
     fun sincronizar() {
         viewModelScope.launch {
+            _enCurso.value = true
             _uiState.update { it.copy(sincronizando = true) }
+
             val resultado = sincronizarProductos()
+
             _uiState.update {
                 it.copy(
                     sincronizando = false,
-                    avisoRed = resultado.exceptionOrNull()?.let {
+                    avisoRed = resultado.exceptionOrNull()?.let { error ->
                         "Sin conexión: mostrando datos guardados"
                     }
                 )
             }
+            _enCurso.value = false
         }
     }
 
-    // Mantenemos este alias por si ProductoScreen o algún test llama a cargarProductos()
     fun cargarProductos() = sincronizar()
 
     fun onNombreChange(nombre: String) {
@@ -106,10 +130,9 @@ class ProductoViewModel(
                         it.copy(
                             registrando = false,
                             formulario = FormularioProducto(),
-                            mensajeExito = "Producto \"${producto.nombre}\" registrado correctamente"
+                            mensajeExito = "Producto \"${producto.nombre}\" registrado localmente y pendiente de sincronización."
                         )
                     }
-                    // Intentamos actualizar el estado del aviso de red tras registrar
                     sincronizar()
                 },
                 onFailure = { fallo ->
@@ -124,7 +147,6 @@ class ProductoViewModel(
                                 )
                             )
                         }
-
                         else -> _uiState.update {
                             it.copy(
                                 registrando = false,
