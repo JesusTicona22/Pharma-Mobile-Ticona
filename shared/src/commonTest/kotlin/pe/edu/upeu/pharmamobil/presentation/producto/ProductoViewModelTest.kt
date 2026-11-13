@@ -2,6 +2,7 @@ package pe.edu.upeu.pharmamobil.presentation.producto
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -10,11 +11,14 @@ import pe.edu.upeu.pharmamobil.data.repository.FakeProductoRepository
 import pe.edu.upeu.pharmamobil.domain.model.Producto
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarProductosUseCase
 import pe.edu.upeu.pharmamobil.domain.usecase.RegistrarProductoUseCase
+import pe.edu.upeu.pharmamobil.domain.usecase.SincronizarProductosUseCase
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -39,7 +43,9 @@ class ProductoViewModelTest {
         repositorio: FakeProductoRepository = FakeProductoRepository()
     ) = ProductoViewModel(
         registrarProducto = RegistrarProductoUseCase(repositorio),
-        listarProductos = ListarProductosUseCase(repositorio)
+        listarProductos = ListarProductosUseCase(repositorio),
+        sincronizarProductos = SincronizarProductosUseCase(repositorio),
+        repository = repositorio
     )
 
     @Test
@@ -122,5 +128,26 @@ class ProductoViewModelTest {
             "Producto \"Paracetamol\" registrado correctamente",
             estado.mensajeExito
         )
+    }
+
+    @Test
+    fun exponeEstadoDeSincronizacionConPendientesYUltimaSync() = runTest {
+        val repositorio = FakeProductoRepository(
+            mutableListOf(
+                Producto(id = -1L, nombre = "Amoxicilina", precio = 18.0, stock = 20, pendiente = true)
+            )
+        )
+        val viewModel = nuevoViewModel(repositorio)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.syncState.collect {}
+        }
+
+        val sync = viewModel.syncState.value
+        assertFalse(sync.enCurso)
+        assertEquals(1, sync.pendientes)
+        assertEquals(0, sync.fallidas)
+        assertNotNull(sync.ultimaSync)
+
+        collector.cancel()
     }
 }

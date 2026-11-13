@@ -1,11 +1,12 @@
 package pe.edu.upeu.pharmamobil.domain.usecase
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import pe.edu.upeu.pharmamobil.data.repository.FakeProductoRepository
 import pe.edu.upeu.pharmamobil.domain.model.Producto
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class ListarProductosUseCaseTest {
 
@@ -18,10 +19,10 @@ class ListarProductosUseCaseTest {
             )
         )
 
-        val resultado = ListarProductosUseCase(repositorio).invoke()
+        val resultado = ListarProductosUseCase(repositorio).invoke().first()
 
-        assertEquals(1, resultado.getOrThrow().size)
-        assertEquals("Paracetamol", resultado.getOrThrow().first().nombre)
+        assertEquals(1, resultado.size)
+        assertEquals("Paracetamol", resultado.first().nombre)
     }
 
     @Test
@@ -31,9 +32,10 @@ class ListarProductosUseCaseTest {
             fallaAlListar = IllegalStateException("Sin conexión")
         }
 
-        val resultado = ListarProductosUseCase(repositorio).invoke()
+        val error = assertFailsWith<IllegalStateException> {
+            ListarProductosUseCase(repositorio).invoke().first()
+        }
 
-        assertTrue(resultado.isFailure)
-        assertEquals("Sin conexión", resultado.exceptionOrNull()?.message)
+        assertEquals("Sin conexión", error.message)
     }
 }
