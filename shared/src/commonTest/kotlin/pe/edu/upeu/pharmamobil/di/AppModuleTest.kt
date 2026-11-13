@@ -8,8 +8,17 @@ import kotlinx.coroutines.test.setMain
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
+import org.koin.dsl.module
+import pe.edu.upeu.pharmamobil.data.local.AlmacenSeguro
 import pe.edu.upeu.pharmamobil.data.repository.ClienteRepositorioEnMemoria
-import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioOffline // <-- NUEVO IMPORT
+import pe.edu.upeu.pharmamobil.data.repository.ProductoRepositorioOffline
+import pe.edu.upeu.pharmamobil.db.PharmaDb
+import pe.edu.upeu.pharmamobil.domain.crearDriverEnMemoria
+import pe.edu.upeu.pharmamobil.domain.permiso.EstadoPermiso
+import pe.edu.upeu.pharmamobil.domain.permiso.GestorPermisos
+import pe.edu.upeu.pharmamobil.domain.permiso.Permiso
+import pe.edu.upeu.pharmamobil.domain.platform.Compartidor
+import pe.edu.upeu.pharmamobil.domain.port.Telemetria
 import pe.edu.upeu.pharmamobil.domain.repository.ClienteRepository
 import pe.edu.upeu.pharmamobil.domain.repository.ProductoRepository
 import pe.edu.upeu.pharmamobil.domain.usecase.ListarClientesUseCase
@@ -41,8 +50,44 @@ class AppModuleTest {
         Dispatchers.resetMain()
     }
 
+    private val testPlatformModule = module {
+        single { PharmaDb(crearDriverEnMemoria()) }
+        single<AlmacenSeguro> {
+            object : AlmacenSeguro {
+                private var token: String? = null
+                override fun guardarToken(token: String) {
+                    this.token = token
+                }
+
+                override fun leerToken(): String? = token
+                override fun borrarToken() {
+                    token = null
+                }
+            }
+        }
+        single<Compartidor> {
+            object : Compartidor {
+                override fun compartir(texto: String) {}
+            }
+        }
+        single<GestorPermisos> {
+            object : GestorPermisos {
+                override suspend fun estado(permiso: Permiso): EstadoPermiso = EstadoPermiso.Concedido
+                override suspend fun solicitar(permiso: Permiso): EstadoPermiso = EstadoPermiso.Concedido
+                override fun abrirAjustes() {}
+            }
+        }
+        single<Telemetria> {
+            object : Telemetria {
+                override fun registrarError(e: Throwable, contexto: Map<String, String>) {}
+                override fun registrarEvento(nombre: String, datos: Map<String, String>) {}
+            }
+        }
+    }
+
     private fun grafoCompleto(): Koin = startKoin {
-        modules(dataModule, domainModule, presentationModule, platformModule)
+        allowOverride(true)
+        modules(dataModule, domainModule, presentationModule, platformModule, testPlatformModule)
     }.koin
 
     @Test
@@ -50,7 +95,7 @@ class AppModuleTest {
 
         val koin = grafoCompleto()
 
-        // CAMBIO CLAVE: Ahora verificamos que resuelva a la versión Offline-First
+        // Verificamos que resuelva a la versión Offline-First
         assertIs<ProductoRepositorioOffline>(koin.get<ProductoRepository>())
         assertIs<ClienteRepositorioEnMemoria>(koin.get<ClienteRepository>())
     }

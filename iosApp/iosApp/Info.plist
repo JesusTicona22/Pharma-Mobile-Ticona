@@ -4,5 +4,11 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>PharmaMobil necesita acceso a la cámara para escanear códigos de barras y registrar fotografías de medicamentos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PharmaMobil necesita tu ubicación para identificar la botica más cercana y registrar entregas.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>PharmaMobil envía notificaciones cuando se completa la sincronización offline o hay productos por reponer.</string>
 </dict>
 </plist>

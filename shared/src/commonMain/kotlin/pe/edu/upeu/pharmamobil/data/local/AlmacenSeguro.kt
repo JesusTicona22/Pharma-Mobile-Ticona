@@ -8,4 +8,7 @@ interface AlmacenSeguro {
     // NUEVO: Persistir la preferencia del tema oscuro
     fun guardarModoOscuro(activo: Boolean) {}
     fun leerModoOscuro(): Boolean = false
+
+    fun guardarUltimaSync(epochMillis: Long) {}
+    fun leerUltimaSync(): Long? = null
 }
