@@ -10,4 +10,5 @@ interface ProductoRepository {
     fun observarFallidas(): Flow<Int>
     suspend fun registrar(producto: Producto): Producto
     suspend fun sincronizar(): ResumenSync
+    suspend fun reintentarFallidas() {}
 }

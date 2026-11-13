@@ -20,9 +20,18 @@ class ProductoLocal(
 ) {
     private val consultas get() = base.productoQueries
 
-    fun observar(): Flow<List<Producto>> =
-        consultas.todos { id, nombre, precio, stock, _, _, _ ->
-            Producto(id = id, nombre = nombre, precio = precio, stock = stock.toInt())
+    fun observar(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Flow<List<Producto>> =
+        consultas.todos { id, nombre, precio, stock, pendiente, intentos, ultimoError ->
+            val esPendiente = pendiente == 1L
+            Producto(
+                id = id,
+                nombre = nombre,
+                precio = precio,
+                stock = stock.toInt(),
+                pendiente = esPendiente,
+                fallida = esPendiente && intentos >= maxIntentos,
+                ultimoError = ultimoError
+            )
         }.asFlow().mapToList(Dispatchers.Default)
 
     fun observarPendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Flow<Int> =
@@ -39,6 +48,27 @@ class ProductoLocal(
 
     fun contarPendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Int =
         consultas.contarPendientes(maxIntentos.toLong()).executeAsOne().toInt()
+
+    fun contarFallidas(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): Int =
+        consultas.contarFallidas(maxIntentos.toLong()).executeAsOne().toInt()
+
+    fun porId(id: Long, maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): FilaPendienteProducto? =
+        consultas.porId(id) { prodId, nombre, precio, stock, pendiente, intentos, ultimoError ->
+            val esPendiente = pendiente == 1L
+            FilaPendienteProducto(
+                producto = Producto(
+                    id = prodId,
+                    nombre = nombre,
+                    precio = precio,
+                    stock = stock.toInt(),
+                    pendiente = esPendiente,
+                    fallida = esPendiente && intentos >= maxIntentos,
+                    ultimoError = ultimoError
+                ),
+                intentos = intentos.toInt(),
+                ultimoError = ultimoError
+            )
+        }.executeAsOneOrNull()
 
     fun pendientes(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO): List<Producto> =
         consultas.pendientesPorEnviar(maxIntentos.toLong()) { id, nombre, precio, stock, _, _, _ ->
@@ -104,6 +134,10 @@ class ProductoLocal(
 
     fun marcarFallida(id: Long, motivo: String, maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO) {
         consultas.marcarFallida(maxIntentos.toLong(), motivo, id)
+    }
+
+    fun reintentarFallidas(maxIntentos: Int = MAX_INTENTOS_POR_DEFECTO) {
+        consultas.reintentarFallidas(maxIntentos.toLong())
     }
 
     fun reemplazarSincronizados(productos: List<Producto>) {

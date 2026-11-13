@@ -43,7 +43,7 @@ val dataModule = module {
 
     // 3. CAMBIO CLAVE: Ahora inyectamos el repositorio Offline-First
     single<ProductoRepository> {
-        ProductoRepositorioOffline(local = get(), remoto = get())
+        ProductoRepositorioOffline(local = get(), remoto = get(), telemetria = get())
     }
 
     single<ClienteRepository> { ClienteRepositorioEnMemoria() }

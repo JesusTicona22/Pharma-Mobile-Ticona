@@ -11,23 +11,43 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import pe.edu.upeu.pharmamobil.domain.model.Sesion
+import pe.edu.upeu.pharmamobil.domain.permiso.EstadoPermiso
+import pe.edu.upeu.pharmamobil.domain.permiso.GestorPermisos
+import pe.edu.upeu.pharmamobil.domain.permiso.Permiso
 import pe.edu.upeu.pharmamobil.navigation.Screen
 
 /** Cada acceso rapido de la portada lleva a uno de los modulos de la app. */
@@ -99,6 +119,8 @@ fun InicioScreen(
                 }
             )
         }
+
+        TarjetaPermisoNotificaciones()
     }
 }
 
@@ -195,6 +217,113 @@ private fun AccesoRapido(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun TarjetaPermisoNotificaciones(
+    gestorPermisos: GestorPermisos = koinInject()
+) {
+    var estadoPermiso by remember { mutableStateOf<EstadoPermiso>(EstadoPermiso.Denegado) }
+    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(gestorPermisos) {
+        estadoPermiso = gestorPermisos.estado(Permiso.NOTIFICACIONES)
+    }
+
+    DisposableEffect(lifecycleOwner, gestorPermisos) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch {
+                    estadoPermiso = gestorPermisos.estado(Permiso.NOTIFICACIONES)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = when (estadoPermiso) {
+                        EstadoPermiso.Concedido -> Icons.Default.CheckCircle
+                        EstadoPermiso.Denegado -> Icons.Default.Notifications
+                        EstadoPermiso.DenegadoParaSiempre -> Icons.Default.NotificationsOff
+                    },
+                    contentDescription = null,
+                    tint = when (estadoPermiso) {
+                        EstadoPermiso.Concedido -> MaterialTheme.colorScheme.primary
+                        EstadoPermiso.Denegado -> MaterialTheme.colorScheme.secondary
+                        EstadoPermiso.DenegadoParaSiempre -> MaterialTheme.colorScheme.error
+                    }
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Notificaciones de sincronización",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = when (estadoPermiso) {
+                            EstadoPermiso.Concedido -> "Estado: Concedido"
+                            EstadoPermiso.Denegado -> "Estado: Denegado (se puede solicitar)"
+                            EstadoPermiso.DenegadoParaSiempre -> "Estado: Denegado permanentemente"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Text(
+                text = when (estadoPermiso) {
+                    EstadoPermiso.Concedido ->
+                        "Las alertas están activas para avisarte cuando se complete la sincronización o falte stock."
+                    EstadoPermiso.Denegado ->
+                        "Recibe alertas cuando tus cambios pendientes terminen de sincronizarse con PharmaSoft o cuando un medicamento requiera reposición."
+                    EstadoPermiso.DenegadoParaSiempre ->
+                        "El permiso fue bloqueado permanentemente. Para activar las alertas de sincronización debes habilitarlo manualmente desde Ajustes."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            when (estadoPermiso) {
+                EstadoPermiso.Concedido -> Unit
+                EstadoPermiso.Denegado -> {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                estadoPermiso = gestorPermisos.solicitar(Permiso.NOTIFICACIONES)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Activar notificaciones")
+                    }
+                }
+                EstadoPermiso.DenegadoParaSiempre -> {
+                    FilledTonalButton(
+                        onClick = { gestorPermisos.abrirAjustes() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Ir a Ajustes")
+                    }
+                }
+            }
         }
     }
 }

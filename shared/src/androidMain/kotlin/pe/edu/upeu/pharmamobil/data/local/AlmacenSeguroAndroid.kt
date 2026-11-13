@@ -34,8 +34,16 @@ class AlmacenSeguroAndroid(contexto: Context) : AlmacenSeguro {
 
     override fun leerModoOscuro(): Boolean = prefs.getBoolean(CLAVE_TEMA, false)
 
+    override fun guardarUltimaSync(epochMillis: Long) {
+        prefs.edit().putLong(CLAVE_ULTIMA_SYNC, epochMillis).apply()
+    }
+
+    override fun leerUltimaSync(): Long? =
+        if (prefs.contains(CLAVE_ULTIMA_SYNC)) prefs.getLong(CLAVE_ULTIMA_SYNC, 0L) else null
+
     private companion object {
         const val CLAVE_TOKEN = "jwt"
         const val CLAVE_TEMA = "modo_oscuro"
+        const val CLAVE_ULTIMA_SYNC = "ultima_sync"
     }
 }

@@ -15,6 +15,10 @@ import pe.edu.upeu.pharmamobil.data.local.AlmacenSeguroIos
 // Import de la Sesión 11 (SQLDelight - Offline First)
 import pe.edu.upeu.pharmamobil.data.local.CreadorDeDriver
 
+// Import de la Sesión 13 (Gestor de Permisos)
+import pe.edu.upeu.pharmamobil.domain.permiso.GestorPermisos
+import pe.edu.upeu.pharmamobil.permiso.GestorPermisosIos
+
 actual val platformModule: Module = module {
     // Motor de red para Ktor en iOS
     single { Darwin.create() }
@@ -27,4 +31,7 @@ actual val platformModule: Module = module {
 
     // Capacidad nativa: Driver de SQLite para la base de datos
     single { CreadorDeDriver() }
+
+    // Gestor de permisos nativo en iOS (Sesión 13)
+    single<GestorPermisos> { GestorPermisosIos() }
 }

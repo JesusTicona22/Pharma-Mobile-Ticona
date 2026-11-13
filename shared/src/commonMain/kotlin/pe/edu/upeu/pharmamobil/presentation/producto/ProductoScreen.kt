@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Inventory2
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
+import pe.edu.upeu.pharmamobil.platform.tiempoActualMillis
 import pe.edu.upeu.pharmamobil.presentation.components.EstadoVacio
 import pe.edu.upeu.pharmamobil.presentation.components.MensajeExito
 import pe.edu.upeu.pharmamobil.presentation.components.ValidatedTextField
@@ -92,48 +94,12 @@ fun ProductoScreen(
             )
         }
 
-        // Aviso de modo offline refinado con conteo de pendientes y fallidas (Guía 13)
-        if (syncState.pendientes > 0 || syncState.fallidas > 0 || uiState.avisoRed != null) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (syncState.fallidas > 0) Icons.Default.Error else Icons.Default.CloudOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = if (syncState.fallidas > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = uiState.avisoRed ?: "Sin conexión",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (syncState.fallidas > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        if (syncState.pendientes > 0) {
-                            Text(
-                                text = "${syncState.pendientes} cambios por enviar",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                        if (syncState.fallidas > 0) {
-                            Text(
-                                text = "${syncState.fallidas} filas fallaron permanentemente",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        // Estado de sincronización observable: conexión, pendientes, fallidas y antigüedad (Guía 13 - Paso 4)
+        BarraEstadoSincronizacion(
+            syncState = syncState,
+            avisoRed = uiState.avisoRed,
+            onReintentarFallidas = viewModel::reintentarFallidas
+        )
 
         uiState.mensajeExito?.let {
             MensajeExito(it)
@@ -378,9 +344,29 @@ private fun ProductoItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                if (producto.fallida && !producto.ultimoError.isNullOrBlank()) {
+                    Text(
+                        text = producto.ultimoError,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
 
-            if (producto.id < 0) {
+            if (producto.fallida) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ) {
+                    Text(
+                        text = "Falló envío",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            } else if (producto.pendiente) {
                 Surface(
                     shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -420,6 +406,93 @@ private fun ProductoItem(
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BarraEstadoSincronizacion(
+    syncState: SincronizacionUiState,
+    avisoRed: String?,
+    onReintentarFallidas: () -> Unit
+) {
+    val hayProblema = syncState.fallidas > 0 || syncState.pendientes > 0 || avisoRed != null
+    val colorFondo = when {
+        syncState.fallidas > 0 -> MaterialTheme.colorScheme.errorContainer
+        hayProblema -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val colorContenido = when {
+        syncState.fallidas > 0 -> MaterialTheme.colorScheme.onErrorContainer
+        hayProblema -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    val mensajePrincipal = when {
+        syncState.enCurso -> "Sincronizando con PharmaSoft…"
+        avisoRed != null && syncState.pendientes > 0 ->
+            "Sin conexión · ${syncState.pendientes} cambios por enviar"
+        avisoRed != null -> avisoRed
+        syncState.pendientes > 0 -> "${syncState.pendientes} cambios por enviar"
+        else -> "En línea"
+    }
+
+    val antiguedad = formatearAntiguedad(syncState.ultimaSync, tiempoActualMillis())
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = colorFondo,
+        contentColor = colorContenido,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = when {
+                    syncState.fallidas > 0 -> Icons.Default.Error
+                    avisoRed != null -> Icons.Default.CloudOff
+                    syncState.enCurso -> Icons.Default.Sync
+                    else -> Icons.Default.CloudDone
+                },
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = colorContenido
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "$mensajePrincipal · $antiguedad",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colorContenido
+                )
+                if (syncState.fallidas > 0) {
+                    Text(
+                        text = "${syncState.fallidas} filas fallaron permanentemente",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            if (syncState.fallidas > 0) {
+                TextButton(onClick = onReintentarFallidas) {
+                    Text("Reintentar ahora")
+                }
+            }
+        }
+    }
+}
+
+private fun formatearAntiguedad(ultimaSync: Long?, ahora: Long): String {
+    if (ultimaSync == null) return "Pendiente de primera sincronización"
+    val diferenciaMinutos = ((ahora - ultimaSync).coerceAtLeast(0L)) / 60_000L
+    return when {
+        diferenciaMinutos < 1L -> "Actualizado hace unos instantes"
+        diferenciaMinutos < 60L -> "Actualizado hace $diferenciaMinutos min"
+        else -> {
+            val horas = diferenciaMinutos / 60L
+            "Actualizado hace $horas h"
         }
     }
 }

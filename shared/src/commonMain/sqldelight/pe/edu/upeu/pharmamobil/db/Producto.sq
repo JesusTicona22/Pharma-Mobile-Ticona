@@ -36,6 +36,9 @@ UPDATE producto SET intentos = intentos + 1, ultimoError = ? WHERE id = ?;
 marcarFallida:
 UPDATE producto SET intentos = :maxIntentos, ultimoError = :motivo WHERE id = :id;
 
+reintentarFallidas:
+UPDATE producto SET intentos = 0, ultimoError = NULL WHERE pendiente = 1 AND intentos >= :maxIntentos;
+
 borrarPorId:
 DELETE FROM producto WHERE id = ?;
 
