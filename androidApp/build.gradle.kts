@@ -1,4 +1,11 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+val firma = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) load(f.inputStream())
+}
+val tieneFirma = firma.getProperty("storeFile") != null
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -25,6 +32,18 @@ android {
     namespace = "pe.edu.upeu.pharmamobil"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
+    signingConfigs {
+        create("release") {
+            val ruta = firma.getProperty("storeFile")
+            if (ruta != null) {
+                storeFile = file(ruta)
+                storePassword = firma.getProperty("storePassword")
+                keyAlias = firma.getProperty("keyAlias")
+                keyPassword = firma.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "pe.edu.upeu.pharmamobil"
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -39,7 +58,10 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            if (tieneFirma) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

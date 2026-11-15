@@ -17,7 +17,21 @@ This is a Kotlin Multiplatform project targeting Android, iOS.
 Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
 
 - Android app: `./gradlew :androidApp:assembleDebug`
+- Android release (AAB / APK firmados): `./gradlew :androidApp:bundleRelease` y `./gradlew :androidApp:assembleRelease`
 - iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+
+### Firma de release en Android (`keystore.properties`)
+
+La configuración de firma de entrega lee las credenciales desde `keystore.properties` en la raíz del proyecto (archivo ignorado por Git junto con `*.jks` y `*.keystore`). Si no existe, las compilaciones `debug` siguen funcionando con normalidad.
+
+Para compilar una versión `release` firmada, crea `keystore.properties` en la raíz con el siguiente formato (sin subir nunca el archivo ni las contraseñas reales al repositorio):
+
+```properties
+storeFile=/ruta/fuera/del/repo/pharmamobil.jks
+storePassword=********
+keyAlias=pharmamobil
+keyPassword=********
+```
 
 ### Running tests
 
